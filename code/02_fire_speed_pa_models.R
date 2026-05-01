@@ -10,8 +10,16 @@
 # =========================================================
 
 # Run this line in the terminal on cyverse
-conda install -c conda-forge r-rstan r-stanheaders r-rstantools r-rcpp r-rcppeigen --yes # run this in the terminal
+# conda install -c conda-forge r-rstan r-stanheaders r-rstantools r-rcpp r-rcppeigen --yes # run this in the terminal
 
+# Run these in R
+install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+library(cmdstanr)
+
+install_cmdstan(cores = 8)
+
+cmdstan_path()
+cmdstan_version()
 
 # =========================================================
 # Install and load required packages
@@ -41,6 +49,14 @@ library(rstan)
 # Stan options
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
+
+
+# =========================================================
+# Install and load required packages
+# =========================================================
+
+setwd("/home/jovyan/data-store/fast-fires-biodiversity")
+here::i_am("fast-fires-biodiversity.Rproj")
 
 # ============================================================
 # Read cleaned PA dataset
@@ -84,17 +100,9 @@ pa_mod_dat <- pa_dat %>%
     
     unique_project_ID = as.factor(unique_project_ID),
     site_id = as.factor(site_id),
-    species = as.factor(species),
+    species = as.factor(species)
     
-    # Fire speed transformation
-    # log1p handles zeros for control rows
-    fire_speed_log = log1p(fire_speed_model),
-    
-    # Scale continuous predictors
-    fire_speed_z = as.numeric(scale(fire_speed_log)),
-    log_effort_pa_z = as.numeric(scale(log_effort_pa)),
-    log_effort2_pa_z = as.numeric(scale(log_effort2_pa))
-  ) %>%
+      ) %>%
   filter(
     !is.na(fire_speed_z),
     !is.na(log_effort_pa_z),
@@ -129,7 +137,7 @@ pa_priors <- c(
 
 
 # ============================================================
-# 5. Model 1: core BACI/fire-speed model
+# Model 1: core BACI/fire-speed model
 # ============================================================
 
 pa_m1 <- brm(
@@ -148,9 +156,12 @@ pa_m1 <- brm(
   
   chains = 4,
   cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
   iter = 2000,
   warmup = 1000,
   seed = 123,
+  refresh = 100,
   
   control = list(
     adapt_delta = 0.95,
@@ -160,7 +171,46 @@ pa_m1 <- brm(
   file = here("models", "pa_m1")
 )
 
+saveRDS(pa_m1, here("models", "pa_m1.rds"))
+
 summary(pa_m1)
-pp_check(pa_m1, ndraws = 100)
 
 
+
+# ============================================================
+# Model 2: Study design/fire speed interaction
+# ============================================================
+
+pa_m2 <- brm(
+  model_response ~
+    study_design * fire_speed_z +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_mod_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m2")
+)
+
+saveRDS(pa_m2, here("models", "pa_m2.rds"))
+
+summary(pa_m2)

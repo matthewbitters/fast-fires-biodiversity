@@ -524,7 +524,7 @@ amfs_master <- amfs_base %>%
     fire_speed_model = if_else(
       eligible_fire_speed & !is.na(fire_speed),
       fire_speed,
-      0
+      NA_real_
     ),
     
     has_fire_speed = eligible_fire_speed & !is.na(fire_speed)
@@ -775,6 +775,44 @@ amfs_clean <- amfs_clean %>%
     !eligible_fire_speed | has_fire_speed
   )
 
+
+# =========================================================
+# 13c. Create shared modeling transformations
+# =========================================================
+
+amfs_clean <- amfs_clean %>%
+  mutate(
+    # Fire speed should only exist for matched burned-after rows
+    fire_speed_model = if_else(
+      eligible_fire_speed & has_fire_speed,
+      fire_speed,
+      NA_real_
+    ),
+    
+    # Log fire speed only where biologically meaningful
+    fire_speed_log = log(fire_speed_model),
+    
+    # Log effort variables
+    log_effort_pa = log(effort_covariate_pa),
+    log_effort2_pa = log(effort_covariate2_pa),
+    
+    log_effort_offset_abundance = log(effort_offset_abundance),
+    log_effort_covariate_abundance = log(effort_covariate_abundance),
+    log_effort_covariate2_abundance = log(effort_covariate2_abundance)
+  ) %>%
+  mutate(
+    # Scaled shared predictors
+    fire_speed_z = as.numeric(scale(fire_speed_log)),
+    
+    log_effort_pa_z = as.numeric(scale(log_effort_pa)),
+    log_effort2_pa_z = as.numeric(scale(log_effort2_pa)),
+    
+    log_effort_offset_abundance_z = as.numeric(scale(log_effort_offset_abundance)),
+    log_effort_covariate_abundance_z = as.numeric(scale(log_effort_covariate_abundance)),
+    log_effort_covariate2_abundance_z = as.numeric(scale(log_effort_covariate2_abundance))
+  )
+
+
 # =========================================================
 # 14. Build analysis-ready PA dataset
 # =========================================================
@@ -782,9 +820,7 @@ amfs_clean <- amfs_clean %>%
 pa_dat <- amfs_clean %>%
   filter(include_pa) %>%
   mutate(
-    model_response = response_pa,
-    log_effort_pa = log(effort_covariate_pa),
-    log_effort2_pa = log(effort_covariate2_pa)
+    model_response = response_pa
   )
 
 
@@ -796,17 +832,11 @@ abundance_dat <- amfs_clean %>%
   filter(include_abundance) %>%
   mutate(
     model_response = response_count,
-    
-    # 🔥 Round ONLY non-integers
     model_response = if_else(
       model_response %% 1 == 0,
       model_response,
       round(model_response)
-    ),
-    
-    log_effort_offset_abundance = log(effort_offset_abundance),
-    log_effort_covariate_abundance = log(effort_covariate_abundance),
-    log_effort_covariate2_abundance = log(effort_covariate2_abundance)
+    )
   )
 
 
