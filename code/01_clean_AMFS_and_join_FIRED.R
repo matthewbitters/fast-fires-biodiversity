@@ -520,7 +520,7 @@ amfs_master <- amfs_base %>%
       days_since_fire > 0 ~ "After"
     ),
     
-    # Model-safe: controls/before rows are 0 so they are not dropped
+    # Model-safe: controls/before rows are NA
     fire_speed_model = if_else(
       eligible_fire_speed & !is.na(fire_speed),
       fire_speed,
@@ -607,19 +607,7 @@ match_summary <- amfs_master %>%
 
 print(match_summary)
 
-match_summary_analysis <- amfs_clean %>%
-  distinct(fired_key, unique_project_ID, eligible_fire_speed, fire_speed) %>%
-  filter(eligible_fire_speed) %>%
-  group_by(unique_project_ID) %>%
-  summarise(
-    n_eligible_burnt_locations = n(),
-    n_matched = sum(!is.na(fire_speed)),
-    match_rate = n_matched / n_eligible_burnt_locations,
-    .groups = "drop"
-  ) %>%
-  arrange(match_rate)
 
-print(match_summary_analysis)
 # =========================================================
 # 9. Check project review decisions
 # =========================================================
@@ -782,27 +770,88 @@ amfs_clean <- amfs_clean %>%
 
 amfs_clean <- amfs_clean %>%
   mutate(
-    # Fire speed should only exist for matched burned-after rows
+    # Fire speed only meaningful for matched burned-after rows
     fire_speed_model = if_else(
       eligible_fire_speed & has_fire_speed,
       fire_speed,
       NA_real_
     ),
     
-    # Log fire speed only where biologically meaningful
-    fire_speed_log = log(fire_speed_model),
+    # Time since 2019–2020 fire only meaningful for burned-after rows
+    days_since_fire_model = if_else(
+      eligible_fire_speed & has_fire_speed,
+      days_since_fire,
+      NA_integer_
+    ),
     
-    # Log effort variables
+    # Fire severity only meaningful for burned-after rows
+    fire_severity_model = case_when(
+      eligible_fire_speed & has_fire_speed ~ as.character(fire_severity_clean),
+      TRUE ~ NA_character_
+    ),
+    
+    fire_severity_model = factor(
+      fire_severity_model,
+      levels = c(
+        "Low (burnt understory, unburnt canopy)",
+        "Moderate (partial canopy scorch)",
+        "High (full canopy scorch)",
+        "Extreme (full canopy consumption)"
+      )
+    ),
+    
+    # Previous-fire history.
+    # 999 means no recorded fire, so don't treat it as numeric 999.
+    ts_fire_model = case_when(
+      ts.fire == 999 ~ NA_real_,
+      !is.na(ts.fire) ~ as.numeric(ts.fire),
+      TRUE ~ NA_real_
+    ),
+    
+    no_fires_model = case_when(
+      no.fires == "0" ~ "0",
+      no.fires == "1" ~ "1",
+      no.fires == "2+" ~ "2+",
+      TRUE ~ NA_character_
+    ),
+    
+    no_fires_model = factor(no_fires_model, levels = c("0", "1", "2+")),
+    
+    # Landscape refugia / unburned area around site
+    unburnt5_model = if_else(
+      eligible_fire_speed & has_fire_speed,
+      unburnt5,
+      NA_real_
+    ),
+    
+    # Climate / land-use covariates
+    mean_temp_model = mean_temp_final,
+    mean_rainfall_model = mean_rainfall_final,
+    drought_spi_model = drought_spi_final,
+    natural_env_5km_model = disturb_landuse_final_5km_pc_naturalenv
+  ) %>%
+  mutate(
+    # Logs
+    fire_speed_log = log(fire_speed_model),
+    days_since_fire_log = log1p(days_since_fire_model),
+    
     log_effort_pa = log(effort_covariate_pa),
     log_effort2_pa = log(effort_covariate2_pa),
     
     log_effort_offset_abundance = log(effort_offset_abundance),
     log_effort_covariate_abundance = log(effort_covariate_abundance),
-    log_effort_covariate2_abundance = log(effort_covariate2_abundance)
-  ) %>%
-  mutate(
-    # Scaled shared predictors
+    log_effort_covariate2_abundance = log(effort_covariate2_abundance),
+    
+    # Scaled numeric predictors
     fire_speed_z = as.numeric(scale(fire_speed_log)),
+    days_since_fire_z = as.numeric(scale(days_since_fire_log)),
+    ts_fire_z = as.numeric(scale(ts_fire_model)),
+    unburnt5_z = as.numeric(scale(unburnt5_model)),
+    
+    mean_temp_z = as.numeric(scale(mean_temp_model)),
+    mean_rainfall_z = as.numeric(scale(mean_rainfall_model)),
+    drought_spi_z = as.numeric(scale(drought_spi_model)),
+    natural_env_5km_z = as.numeric(scale(natural_env_5km_model)),
     
     log_effort_pa_z = as.numeric(scale(log_effort_pa)),
     log_effort2_pa_z = as.numeric(scale(log_effort2_pa)),

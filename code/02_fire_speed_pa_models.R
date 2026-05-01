@@ -75,7 +75,7 @@ table(pa_dat$broad_taxon, useNA = "ifany")
 
 
 # ============================================================
-# 3. Final modeling prep
+# Final PA modeling prep
 # ============================================================
 
 pa_mod_dat <- pa_dat %>%
@@ -83,13 +83,15 @@ pa_mod_dat <- pa_dat %>%
     !is.na(model_response),
     !is.na(study_design),
     !is.na(unique_project_ID),
-    !is.na(site_name),
+    !is.na(site_id),
     !is.na(species),
-    !is.na(broad_taxon)
+    !is.na(broad_taxon),
+    !is.na(log_effort_pa_z),
+    !is.na(log_effort2_pa_z)
   ) %>%
   mutate(
+    model_response = as.integer(model_response),
     
-    # Factor structure
     study_design = factor(
       study_design,
       levels = c("Before", "After_Unburnt", "After_Burnt")
@@ -101,15 +103,36 @@ pa_mod_dat <- pa_dat %>%
     unique_project_ID = as.factor(unique_project_ID),
     site_id = as.factor(site_id),
     species = as.factor(species)
-    
-      ) %>%
-  filter(
-    !is.na(fire_speed_z),
-    !is.na(log_effort_pa_z),
-    !is.na(log_effort2_pa_z)
   )
 
+
+# ============================================================
+# Optional burned-only fire-speed dataset
+# ============================================================
+
+pa_fire_dat <- pa_mod_dat %>%
+  filter(
+    study_design == "After_Burnt",
+    !is.na(fire_speed_z),
+    !is.na(days_since_fire_z)
+  ) %>%
+  mutate(
+    fire_severity_model = factor(
+      fire_severity_model,
+      levels = c(
+        "Low (burnt understory, unburnt canopy)",
+        "Moderate (partial canopy scorch)",
+        "High (full canopy scorch)",
+        "Extreme (full canopy consumption)"
+      )
+    )
+  )
+
+
+# ============================================================
 # Quick checks
+# ============================================================
+
 pa_mod_dat %>%
   summarise(
     n = n(),
@@ -120,8 +143,21 @@ pa_mod_dat %>%
     prevalence = mean(model_response)
   )
 
+pa_fire_dat %>%
+  summarise(
+    n = n(),
+    n_projects = n_distinct(unique_project_ID),
+    n_sites = n_distinct(site_id),
+    n_species = n_distinct(species),
+    prevalence = mean(model_response),
+    fire_speed_min = min(fire_speed_model, na.rm = TRUE),
+    fire_speed_max = max(fire_speed_model, na.rm = TRUE),
+    days_since_fire_min = min(days_since_fire_model, na.rm = TRUE),
+    days_since_fire_max = max(days_since_fire_model, na.rm = TRUE)
+  )
+
 table(pa_mod_dat$study_design, useNA = "ifany")
-table(pa_mod_dat$broad_taxon, useNA = "ifany")
+table(pa_fire_dat$fire_severity_model, useNA = "ifany")
 
 
 # ============================================================
@@ -143,7 +179,7 @@ pa_priors <- c(
 pa_m1 <- brm(
   model_response ~
     study_design +
-    fire_speed_z +
+    ecosystem_group +
     log_effort_pa_z +
     log_effort2_pa_z +
     (1 | unique_project_ID) +
@@ -178,19 +214,21 @@ summary(pa_m1)
 
 
 # ============================================================
-# Model 2: Study design/fire speed interaction
+# Model 2: Using burned data only - fire speed
 # ============================================================
 
 pa_m2 <- brm(
   model_response ~
-    study_design * fire_speed_z +
+    fire_speed_z +
+    days_since_fire_z +
+    ecosystem_group +
     log_effort_pa_z +
     log_effort2_pa_z +
     (1 | unique_project_ID) +
     (1 | site_id) +
     (1 | species),
   
-  data = pa_mod_dat,
+  data = pa_fire_dat,
   family = bernoulli(link = "logit"),
   prior = pa_priors,
   
