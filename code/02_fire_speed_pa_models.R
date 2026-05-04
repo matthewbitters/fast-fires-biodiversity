@@ -1,6 +1,6 @@
 ### Fast fires impacts on biodiversity
 
-### Modeling...
+### Modeling presence/absence
 
 ### Matt Bitters
 ### matthew.bitters@colorado.edu
@@ -52,7 +52,7 @@ options(mc.cores = parallel::detectCores())
 
 
 # =========================================================
-# Install and load required packages
+# Set working directory
 # =========================================================
 
 setwd("/home/jovyan/data-store/fast-fires-biodiversity")
@@ -86,6 +86,7 @@ pa_mod_dat <- pa_dat %>%
     !is.na(site_id),
     !is.na(species),
     !is.na(broad_taxon),
+    !is.na(ecosystem_group),
     !is.na(log_effort_pa_z),
     !is.na(log_effort2_pa_z)
   ) %>%
@@ -107,7 +108,7 @@ pa_mod_dat <- pa_dat %>%
 
 
 # ============================================================
-# Optional burned-only fire-speed dataset
+# Burned-only fire-speed dataset
 # ============================================================
 
 pa_fire_dat <- pa_mod_dat %>%
@@ -128,6 +129,8 @@ pa_fire_dat <- pa_mod_dat %>%
     )
   )
 
+pa_fire_dat <- pa_fire_dat %>%
+  filter(!is.na(fire_severity_model))
 
 # ============================================================
 # Quick checks
@@ -222,6 +225,7 @@ pa_m2 <- brm(
     fire_speed_z +
     days_since_fire_z +
     ecosystem_group +
+    broad_taxon +
     log_effort_pa_z +
     log_effort2_pa_z +
     (1 | unique_project_ID) +
@@ -252,3 +256,481 @@ pa_m2 <- brm(
 saveRDS(pa_m2, here("models", "pa_m2.rds"))
 
 summary(pa_m2)
+
+
+# ============================================================
+# Model 3: Using burned data only - fire speed + fire severity
+# ============================================================
+
+pa_m3 <- brm(
+  model_response ~
+    fire_speed_z +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m3")
+)
+
+saveRDS(pa_m3, here("models", "pa_m3.rds"))
+
+summary(pa_m3)
+
+
+# ============================================================
+# Model 4: Using burned data only - fire speed + fire severity + fire speed/taxon differences
+# ============================================================
+
+pa_m4 <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m4")
+)
+
+saveRDS(pa_m4, here("models", "pa_m4.rds"))
+
+summary(pa_m4)
+
+
+# ============================================================
+# Model 4_1: Using burned data only - fire speed + fire severity + fire speed/taxon differences + number of previous fires
+# ============================================================
+
+pa_m4_1 <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    fire_severity_model +
+    no_fires_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m4_1")
+)
+
+saveRDS(pa_m4_1, here("models", "pa_m4_1.rds"))
+
+summary(pa_m4_1)
+
+# ============================================================
+# Model 5: Using burned data only - fire speed + fire severity + fire speed/ecosystem differences
+# ============================================================
+
+pa_m5 <- brm(
+  model_response ~
+    fire_speed_z * ecosystem_group +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m5")
+)
+
+saveRDS(pa_m5, here("models", "pa_m5.rds"))
+
+summary(pa_m5)
+
+
+# ============================================================
+# Model 6: Using burned data only - fire speed + fire severity + fire speed/ecosystem differences + fire speed/taxon differences
+# ============================================================
+
+pa_m6 <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    fire_speed_z * ecosystem_group +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m6")
+)
+
+saveRDS(pa_m6, here("models", "pa_m6.rds"))
+
+summary(pa_m6)
+
+
+# ============================================================
+# Loo comparison
+# ============================================================
+
+
+# Compute LOO
+loo_pa_m1 <- loo(pa_m1)
+loo_pa_m2 <- loo(pa_m2)
+loo_pa_m3 <- loo(pa_m3)
+loo_pa_m4 <- loo(pa_m4)
+loo_pa_m4_1 <- loo(pa_m4_1)
+loo_pa_m5 <- loo(pa_m5)
+loo_pa_m6 <- loo(pa_m6)
+
+# Save LOO objects
+saveRDS(loo_pa_m1, here("models", "loo", "loo_pa_m1.rds"))
+saveRDS(loo_pa_m2, here("models", "loo", "loo_pa_m2.rds"))
+saveRDS(loo_pa_m3, here("models", "loo", "loo_pa_m3.rds"))
+saveRDS(loo_pa_m4, here("models", "loo", "loo_pa_m4.rds"))
+saveRDS(loo_pa_m4_1, here("models", "loo", "loo_pa_m4_1.rds"))
+saveRDS(loo_pa_m5, here("models", "loo", "loo_pa_m5.rds"))
+saveRDS(loo_pa_m6, here("models", "loo", "loo_pa_m6.rds"))
+
+# Compare models (burned only dataset models)
+loo_compare(
+  loo_pa_m2,
+  loo_pa_m3,
+  loo_pa_m4,
+  loo_pa_m4_1,
+  loo_pa_m5,
+  loo_pa_m6
+)
+
+
+
+# ============================================================
+# Model 7: Using burned data only - m4_1 plus days since fire/taxon interaction
+# ============================================================
+
+pa_m7 <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    days_since_fire_z * broad_taxon +
+    fire_severity_model +
+    no_fires_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 2000,
+  warmup = 1000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m7")
+)
+
+saveRDS(pa_m7, here("models", "pa_m7.rds"))
+
+summary(pa_m7)
+
+
+# Compute LOO
+loo_pa_m7 <- loo(pa_m7)
+
+# Save LOO objects
+saveRDS(loo_pa_m7, here("models", "loo", "loo_pa_m7.rds"))
+
+# Compare models (burned only dataset models)
+loo_compare(
+  loo_pa_m4_1,
+  loo_pa_m7
+)
+
+
+
+
+
+
+
+################################################################################
+################################################################################
+
+
+
+### Re-run final models with more iterations
+
+
+
+
+# Baseline BACI model
+pa_m1_final <- brm(
+  model_response ~
+    study_design +
+    ecosystem_group +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_mod_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 6000,
+  warmup = 3000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m1_final")
+)
+
+
+# Fire severity/fire speed
+pa_m3_final <- brm(
+  model_response ~
+    fire_speed_z +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 6000,
+  warmup = 3000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m3_final")
+)
+
+
+# Taxon interaction w/ fire speed
+pa_m4_final <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 6000,
+  warmup = 3000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m4_final")
+)
+
+
+# Taxon recovery
+pa_m7_final <- brm(
+  model_response ~
+    fire_speed_z * broad_taxon +
+    days_since_fire_z * broad_taxon +
+    fire_severity_model +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    log_effort_pa_z +
+    log_effort2_pa_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = pa_fire_dat,
+  family = bernoulli(link = "logit"),
+  prior = pa_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 6000,
+  warmup = 3000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "pa_m7_final")
+)
+
+
+
+
+# Summaries
+
+summary(pa_m1_final)
+summary(pa_m3_final)
+summary(pa_m4_final)
+summary(pa_m7_final)
+
+pp_check(pa_m4_final)
