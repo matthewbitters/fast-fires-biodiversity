@@ -496,6 +496,12 @@ amfs_master <- amfs_base %>%
   mutate(
     fire_speed = if_else(
       eligible_fire_speed,
+      dy_ar_km2,
+      NA_real_
+    ),
+    
+    fire_event_growth_rate = if_else(
+      eligible_fire_speed,
       fsr_km2_dy,
       NA_real_
     ),
