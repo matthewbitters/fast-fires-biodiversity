@@ -171,6 +171,28 @@ table(abund_mod_dat$study_design, useNA = "ifany")
 table(abund_fire_dat$fire_severity_model, useNA = "ifany")
 table(abund_fire_dat$broad_taxon, useNA = "ifany")
 
+# ============================================================
+# More scaling for sensitivity model
+# ============================================================
+
+summary(abund_fire_dat$no_fires_model)
+table(abund_fire_dat$no_fires_model)
+summary(abund_fire_dat$unburnt5)
+summary(abund_fire_dat$drought_spi_final)
+
+# Make no_fires a factor, log and scale unburnt5, scale drought spi
+abund_fire_dat <- abund_fire_dat %>%
+  mutate(
+    # Fire history
+    no_fires_model = factor(no_fires_model),
+    
+    # Refugia
+    unburnt5_log = log1p(unburnt5),
+    unburnt5_z   = scale(unburnt5_log)[,1],
+    
+    # Drought
+    drought_spi_z = scale(drought_spi_final)[,1]
+  )
 
 # ============================================================
 # Priors
@@ -358,3 +380,51 @@ pp_check(abund_m4_final)
 
 bayes_R2(abund_m3_final)
 bayes_R2(abund_m4_final)
+
+
+################################################################################
+################################################################################
+
+
+### Final sensitivity checks
+
+abund_m3_sens <- brm(
+  model_response ~
+    fire_speed_z +
+    fire_severity_model +
+    no_fires_model +
+    unburnt5_z +
+    drought_spi_z +
+    days_since_fire_z +
+    ecosystem_group +
+    broad_taxon +
+    offset(log_effort_offset_abundance) +
+    log_effort_covariate_abundance_z +
+    log_effort_covariate2_abundance_z +
+    (1 | unique_project_ID) +
+    (1 | site_id) +
+    (1 | species),
+  
+  data = abund_fire_dat,
+  family = negbinomial(link = "log"),
+  prior = abund_priors,
+  
+  chains = 4,
+  cores = 4,
+  threads = threading(8),
+  backend = "cmdstanr",
+  iter = 6000,
+  warmup = 3000,
+  seed = 123,
+  refresh = 100,
+  
+  control = list(
+    adapt_delta = 0.95,
+    max_treedepth = 15
+  ),
+  
+  file = here("models", "abund_m3_sens")
+)
+
+summary(abund_m3_final)
+
